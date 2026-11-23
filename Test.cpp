@@ -4,11 +4,12 @@
 #include <vector>
 #include <utility>
 #include <tuple>
+#include <random>
 
-#include "GameLogic.h"
 #include "Debug.h"
+#include "PRNG.h"
+#include "GameLogic.h"
 
-static AllocationMetrics s_AllocationMetrics; //Allocaion info
 
 int main() {
     //Screen Settings
@@ -16,38 +17,27 @@ int main() {
     InitWindow(screenWidth, screenHeight, "Minesweeper");
     SetTargetFPS(60);
 
-    //Game Settings
-    
-
     //Creating Elements
-    BOARD Board{};
-    GRID Grid;
+    GAME Game;
+    Game.StartGame();
 
-    while (!WindowShouldClose()) {
+    while (!WindowShouldClose())
+    {
+        if (IsKeyPressed(KEY_R)) {
+            Game.ResetGame();
+        }
+
         BeginDrawing();
-        ClearBackground(GRAY);
+        ClearBackground({ 176, 184, 196, 255 });
 
-        Board.draw();
-        
-        for (const auto& cell: Grid) {
-            cell.draw();
-        }
+        Game.HoveringCell();
+        Game.Draw();
+        Game.Refresh();
 
+        //auto cursor = GetMousePosition();
+        //DrawText(TextFormat("Pos: %.1f, %.1f", cursor.x, cursor.y), 25, 25, 40, GREEN);
+        //
         //std::cout << "Allocating " << s_AllocationMetrics.CurrentMemoryUsage() << "Bytes\n";
-        
-        auto [isHit, targetCell_r, targetCell_c] = GetTargetCell(Board, Grid);
-        if (isHit)
-        {
-            Cell& targetCell = Grid.at(targetCell_r * 8 + targetCell_c);  //8 = row_num
-
-            std::cout << "Currently hovering at Cell " << targetCell_r << "_" << targetCell_c << "\n";
-
-            if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
-                targetCell.makeFlagged();
-        }
-
-        auto cursor = GetMousePosition();
-        DrawText(TextFormat("Pos: %.1f, %.1f", cursor.x, cursor.y), 25, 25, 40, GREEN);
 
         EndDrawing();
     }
