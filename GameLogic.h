@@ -109,12 +109,22 @@ public:
         isFlagged = true;
     }
 
-    void Open() {
+    int Open(bool FirstClick) { //Return= -2: First click is Bomb, -1: Opened bomb, 0: Couldn't open, 0<x: Opened x cells;
         if (isOpened || isFlagged)
-            return;
+            return 0;
 
-        isOpened = true;
+        if (isBomb) {
+            if (FirstClick) {
+                std::cout << " OPENED THE BOMB FIRST CLICK! \n";
+                return -2;
+            }
+            std::cout << " OPENED THE BOMB ONE! \n";
+            isOpened = true;
+            return -1;
+        }
         std::cout << " OPEN ONE! \n";
+        isOpened = true;
+        return 1; // TODO: ADD NEIGHBOR CHECK(!)
     }
 
     void OpenAll() {
@@ -147,6 +157,10 @@ public:
         m_value = value;
     }
 
+    int getValue() {
+        return m_value;
+    }
+
     bool CheckBomb() const {
         return isBomb;
     }
@@ -158,7 +172,7 @@ private:
 public:
     GRID(int rowNum, int columnNum, int cellSize, int cellstartX, int cellstartY) {
         Grid.reserve(rowNum * columnNum);
-        
+
         for (int r = 0; r < rowNum; r++) {
             for (int c = 0; c < columnNum; c++) {
                 Grid.emplace_back(c, r, cellSize, cellstartX, cellstartY);
@@ -186,9 +200,9 @@ public:
         }
     }
 
-    void SetCellValues(int rowNum, int colNum) {
+    void SetCellValues(int rowNum, int colNum) { // This is for initial set
         for (int r = 0; r < rowNum; r++) {
-            for (int c = 0; c < colNum; c++) // EVERY CELL
+            for (int c = 0; c < colNum; c++) // Every cell
             {
                 int value = 0;
 
@@ -204,7 +218,7 @@ public:
                                 !(i == 0 && j == 0)) //if the cell is itself
                             {
                                 if (getCellAt(r + i, c + j, colNum).CheckBomb()) {
-                                    value += 1;
+                                    value ++;
                                 }
                             }
                         }
@@ -214,6 +228,44 @@ public:
             }
         }
     }
+
+    void SetCellValues(int newBomb_r, int newBomb_c, int oldBomb_r, int oldBomb_c, int rowNum, int colNum) { // This is for first click optimizasion set
+        int oldBombValue = 0;
+
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++)
+            {
+                if (oldBomb_r + i >= 0 && oldBomb_r + i < rowNum && // Out of border
+                    oldBomb_c + j >= 0 && oldBomb_c + j < colNum && // Out of border
+                    !(i == 0 && j == 0)) // If the cell is itself
+                {
+                    CELL& neighbourOldCell = getCellAt(oldBomb_r + i, oldBomb_c + j, colNum);
+                    if (neighbourOldCell.CheckBomb())
+                        oldBombValue++;
+                    else
+                        neighbourOldCell.setValue(neighbourOldCell.getValue() - 1);
+                }
+
+                if (i == 0 && j == 0) { //if the cell itself
+                    getCellAt(newBomb_r, newBomb_c, colNum).MakeBomb();
+                    std::cout << "Cell " << newBomb_r << "_" << newBomb_c << " is change to be a bomb!\n";
+                    continue;
+                }
+                if (newBomb_r + i >= 0 && newBomb_r + i < rowNum && // Out of border
+                    newBomb_c + j >= 0 && newBomb_c + j < colNum)
+                {
+                    CELL& neighbourNewCell = getCellAt(newBomb_r + i, newBomb_c + j, colNum);
+                    if (!(neighbourNewCell.CheckBomb())) { // If the neighbour is NOT a bomb
+                        neighbourNewCell.setValue(neighbourNewCell.getValue() + 1);
+                    }
+                }
+            }
+        }
+        CELL& oldBombCell = getCellAt(oldBomb_r, oldBomb_c, colNum);
+        oldBombCell.setToDefault();
+        oldBombCell.setValue(oldBombValue);
+        oldBombCell.Open(false);
+    }
 };
 
 class GAME {
@@ -222,7 +274,8 @@ private:
 
     //Cell stuff
     const int cellSize = 50;
-    int gridCols = 8, gridRows = 8, numOfBombs = 10, currentBombs = 0;
+    const int gridCols = 8, gridRows = 8, numOfCells = 8 * 8, numOfBombs = 10;
+    int numOfOpenedCells = 0, currentBombs = 0;
     int targetCell_r = -1, targetCell_c = -1;
 
     //Border stuff
@@ -238,6 +291,7 @@ private:
     //Other
     bool m_isGameFinish = 0; // type= 0: Normal, 1: GameEnd
     bool m_gameFinishType;  // type 0: Dead, 1: Won
+    bool m_isFirstClick = 1;
 
     enum MOUSE_BTN
     {
@@ -315,13 +369,36 @@ public:
 
         if (int act = MouseEventListener()) { //Action
             switch (act) {
-            case 1:
+            case OUT_MOUSE_BTN_R:
                 targetCell.Flag(); break;
 
-            case 2:
-                targetCell.Open(); break;
+            case OUT_MOUSE_BTN_L:
+            {
+                int result = targetCell.Open(m_isFirstClick);
+                m_isFirstClick = false;
 
-            case 3: case 4:
+                switch (result) {
+                case -2:
+                    ReplaceBomb(targetCell_r, targetCell_c);
+                    break;
+
+                case -1:
+                    FinishGame(0); break;
+
+                case 0:
+
+                    break;
+
+                default:
+                    numOfOpenedCells += result;
+                    std::cout << numOfOpenedCells << " - " << numOfCells << " - " << numOfBombs << "\n";
+                    if (numOfOpenedCells == numOfCells - numOfBombs)
+                        FinishGame(1);
+                }
+                break;
+            }
+
+            case OUT_MOUSE_BUT_M: case OUT_MOUSE_BTN_B:
                 targetCell.OpenAll(); break;
             }
         }
@@ -332,7 +409,7 @@ public:
             int result = Random.GenerateRandom(gridRows * gridCols);
 
             if (m_Grid.getCellAt(result).MakeBomb()) { //If the cell is NOT a bomb
-                currentBombs += 1;
+                currentBombs ++;
                 std::cout << "Bomb placed on Cell " << result / gridCols << "_" << result % gridCols << "\n";
             }
             else {
@@ -341,7 +418,16 @@ public:
         }
     }
 
+    void ReplaceBomb(int oldCell_r, int oldCell_c) {
+        int result;
+        do {
+            result = Random.GenerateRandom(gridRows * gridCols);
+        } while (result == oldCell_r * gridCols + gridCols || !(m_Grid.getCellAt(result).MakeBomb())); // While NOT the same cell AND the diffirent cell is NOT a bomb , make the result cell a bomb.
+        m_Grid.SetCellValues(result / gridCols, result % gridCols, oldCell_r, oldCell_c, gridRows, gridCols);
+    }
+
     void StartGame() {
+        std::cout << "\n --------------------------------- \n\n";
         GenerateBombs();
         m_Grid.SetCellValues(gridRows, gridCols);
     }
@@ -353,8 +439,8 @@ public:
 
     void ResetGame() {
         m_Grid.ResetGrid();
-        m_isGameFinish = 0;
-        currentBombs = 0;
+        m_isGameFinish = 0; m_isFirstClick = 1;
+        currentBombs = 0; numOfOpenedCells = 0;
 
         StartGame();
     }
@@ -362,7 +448,9 @@ public:
 
 /*
 TODOS:
-FIRST CLICK NOT BOMB, if so RESET ONLY 1 BOMB BUT OTHER THİNGS ALSO CHANGE ( MAYBE OPTİMİZED MAYBE NOT) 
-IF ALL BOMBS= FLAG, USEABLE OPEN ALL
+FIRST CLICK NOT BOMB, if so RESET ONLY 1 BOMB BUT OTHER THİNGS ALSO CHANGE(MAYBE OPTİMİZED MAYBE NOT) -- > CHECK THİS
+IF ALL BOMBS = FLAG, USEABLE OPEN ALL -> make this
 İF CLİCK cell have neighbor 0's also open them.
+CHECK WİN THİNG (PROB NOT WORKNG
+FİRST CLİCK BOMB DOESNT MAKE WİN! 
 */
