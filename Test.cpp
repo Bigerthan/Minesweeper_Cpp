@@ -1,15 +1,24 @@
 #include <iostream>
 #include <string>
-#include <raylib.h>
-#include <vector>
 #include <utility>
+#include <vector>
 #include <tuple>
+#include <raylib.h>
 #include <random>
+#include <chrono>
 
-#include "Debug.h"
-#include "PRNG.h"
+#include "Engines.h"
 #include "GameLogic.h"
 
+#ifdef _DEBUG
+#include "Debug.h"
+#define SHOW_MOUSE_COORDS auto cursor = GetMousePosition(); DrawText(TextFormat("Pos: %.1f, %.1f", cursor.x, cursor.y), 25, 25, 40, LIME)
+#define LOG_ALLOCATING_MEMORY std::cout << "Allocating " << s_AllocationMetrics.CurrentMemoryUsage() << "Bytes\n"
+
+#else
+#define SHOW_MOUSE_COORDS
+#define LOG_ALLOCATING_MEMORY
+#endif
 
 int main() {
     //Screen Settings
@@ -33,11 +42,10 @@ int main() {
         Game.HoveringCell();
         Game.Draw();
         Game.Refresh();
-
-        //auto cursor = GetMousePosition();
-        //DrawText(TextFormat("Pos: %.1f, %.1f", cursor.x, cursor.y), 25, 25, 40, GREEN);
-        //
-        //std::cout << "Allocating " << s_AllocationMetrics.CurrentMemoryUsage() << "Bytes\n";
+        
+        //Debug stuff
+        SHOW_MOUSE_COORDS;
+        //LOG_ALLOCATING_MEMORY;
 
         EndDrawing();
     }
