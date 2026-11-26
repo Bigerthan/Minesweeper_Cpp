@@ -1,44 +1,12 @@
 #pragma once
-#include "PRNG.h"
+#include "Engines.h"
 
-//class RESET_BTN {
-//private:
-//    Color m_boxColor = RED, m_textColor = WHITE;
-//    int m_textFontSize = 25;
-//
-//    std::pair<int, int> m_startingCoords = { 50, 175 };
-//    int m_width = 75, m_height = 25;
-//
-//public:
-//    RESET_BTN() {
-//        DrawRectangle(m_startingCoords.first, m_startingCoords.second, m_width, m_height, m_boxColor);
-//        DrawText("Reset", m_startingCoords.first, m_startingCoords.second, m_textFontSize, m_textColor);
-//    }
-//};
-//
-//class GAMEMODE_SELECTOR {
-//private:
-//    Color m_boxColor = GRAY, m_textColor = WHITE;
-//    int m_textFontSize = 25;
-//
-//    std::pair<int, int> m_startingCoords = { 150, 175 };
-//    int m_width = 45, m_height = 25;
-//
-//public:
-//    GAMEMODE_SELECTOR() {
-//        DrawRectangle(m_startingCoords.first, m_startingCoords.second, m_width, m_height, m_boxColor);
-//        DrawText("Reset", m_startingCoords.first, m_startingCoords.second, m_textFontSize, m_textColor);
-//    }
-//};
-//
-//class EASY_MODE : public GAMEMODE_SELECTOR {
-//private:
-//
-//public:
-//    EASY_MODE() {
-//
-//    }
-//};
+#ifdef _DEBUG
+#define DEBUG_LOG(x) std::cout << x << "\n";
+#else
+#define DEBUG_LOG(x)
+#endif
+
 
 class BOARD {
 private:
@@ -53,7 +21,7 @@ public:
         m_width = m_finishX - m_startingX;
         m_height = m_finishY - m_startingY;
         draw();
-        std::cout << "The Board is created!\n";
+        DEBUG_LOG("The Board is created!");
     }
 
     void draw() const {
@@ -76,7 +44,7 @@ public:
         m_column(column), m_row(row), m_size(size), m_startX(startX), m_startY(startY)
     {
         draw();
-        std::cout << "Created cell " << m_column << "_" << m_row << " !\n";
+        DEBUG_LOG("Created cell " << m_column << "_" << m_row);
     }
 
     void draw() const {
@@ -96,17 +64,16 @@ public:
         }
     }
 
-    void Flag() {
-        if (isOpened)
-            return;
-
+    int Flag() {
+        if (isOpened) {
+            return 0;
+        }
         if (isFlagged) {
             isFlagged = false;
-            return;
+            return -1;
         }
-
-        DrawText("!", 100 - 2 + (m_column + 0.5) * m_size, 200 + 5 + m_row * m_size, 50, RED); // -2 and +5 = to center 
         isFlagged = true;
+        return 1;
     }
 
     int Open(bool FirstClick) { //Return= -4: Flagged/Unopenable, -3: Opened, -2: First click is Bomb, -1: Opened bomb, 0: Zero, 0<x: Opened cell with value of x;
@@ -118,10 +85,10 @@ public:
 
         if (isBomb) {
             if (FirstClick) {
-                std::cout << " OPENED THE BOMB FIRST CLICK! \n";
+                DEBUG_LOG("OPENED THE BOMB FIRST CLICK!");
                 return -2;
             }
-            std::cout << " OPENED THE BOMB! \n";
+            DEBUG_LOG("OPENED THE BOMB!");
             isOpened = true;
             return -1;
         }
@@ -154,7 +121,7 @@ public:
     }
 
     template<typename T>
-    T getData(char name = 'V') { // (int) V: value, (bool) B: bomb, (bool) F: flagged, (bool) O: opened, (bool) H: hovering, (int) R: row, (int) C: col 
+    T getData(char name) { // (int) V: value, (bool) B: bomb, (bool) F: flagged, (bool) O: opened, (bool) H: hovering, (int) R: row, (int) C: col 
         switch (name) {
         case 'V': return m_value; break;
         case 'B': return isBomb; break;
@@ -163,7 +130,6 @@ public:
         case 'H': return isHovering; break;
         case 'R': return m_row; break;
         case 'C': return m_column; break;
-        default: std::cout << "Error: Unknown data name!\n"; break;
         }
     }
 };
@@ -240,20 +206,20 @@ public:
 
     void SetCellValues(int newBomb_r, int newBomb_c, int oldBomb_r, int oldBomb_c) { // This is for first click optimizasion set
         int oldBombValue = 0;
-        std::cout << "Cell " << newBomb_r << "_" << newBomb_c << " is change to be a bomb!\n"; // Its already made before coming this function (in ReplaceBomb)
+        DEBUG_LOG("Cell " << newBomb_r << "_" << newBomb_c << " is change to be a bomb!"); // Its already made before coming this function (in ReplaceBomb)
 
         NeighbourFunc(oldBomb_r, oldBomb_c, [this, &oldBombValue](int n_r, int n_c) {
             CELL& neighbourOldCell = getCellAt(n_r, n_c);
             if (neighbourOldCell.getData<bool>('B')) 
                 oldBombValue++;
             else 
-                neighbourOldCell.setValue(neighbourOldCell.getData<int>() - 1);;
+                neighbourOldCell.setValue(neighbourOldCell.getData<int>('V') - 1);;
         });
 
         NeighbourFunc(newBomb_r, newBomb_c, [this](int n_r, int n_c) {
             CELL& neighbourNewCell = getCellAt(n_r, n_c);
             if (!(neighbourNewCell.getData<bool>('B'))) { // If the neighbour is NOT a bomb
-                neighbourNewCell.setValue(neighbourNewCell.getData<int>() + 1);}
+                neighbourNewCell.setValue(neighbourNewCell.getData<int>('V') + 1); }
         });
 
         CELL& oldBombCell = getCellAt(oldBomb_r, oldBomb_c);
@@ -265,7 +231,7 @@ public:
     void OpenCellPlus(int r, int c, int& totalOpenedCells) {
         NeighbourFunc(r, c, [this, &totalOpenedCells](int n_r, int n_c) { // HAS A PROBLEM, DOESNT open outer things, have diffirent kinds. 
             CELL& neighbourCell = getCellAt(n_r, n_c);
-            if (!neighbourCell.getData<bool>('O')) { 
+            if (!neighbourCell.getData<bool>('O') && !neighbourCell.getData<bool>('F')) {
                 neighbourCell.Open(false);
                 totalOpenedCells++;
 
@@ -311,7 +277,7 @@ private:
     //Cell stuff
     const int cellSize = 50;
     const int gridCols = 8, gridRows = 8, numOfCells = 8 * 8, numOfBombs = 10;
-    int numOfOpenedCells = 0, currentBombs = 0;
+    int numOfOpenedCells = 0, numOfFlaggedCells = 0, currentBombs = 0;
     int targetCell_r = -1, targetCell_c = -1;
 
     //Border stuff
@@ -319,10 +285,9 @@ private:
     std::pair<int, int> borderFinishCoords = { borderStartCoords.first + cellSize * gridCols ,borderStartCoords.second + cellSize * gridRows };
 
     //Elements
+    Timer_Engine Timer;
     BOARD m_Board;
     GRID m_Grid;
-    //RESET_BTN m_ResetBtn;
-    //GAMEMODE_SELECTOR m_GamemodeSelector;
 
     //Other
     bool m_isGameFinish = 0; // type= 0: Normal, 1: GameEnd
@@ -347,7 +312,13 @@ private:
     void TitleDraw() const {
         DrawText("MINESWEEPER", GetScreenWidth() / 6 + 10, borderStartCoords.second / 2, 50, { 38, 46, 61, 255 });
     }
-    void GameFinish_Draw() const {
+    void TimerDraw() {
+        DrawText(TextFormat("Time: %03.1f", Timer.ReturnDuration()), GetScreenWidth() * 2 / 3, borderStartCoords.second * 13 / 16, 25, RED);
+    }
+    void FlaggedCouterDraw() const {
+        DrawText(TextFormat("Flags: %d/%d", numOfBombs - numOfFlaggedCells, numOfBombs), GetScreenWidth() / 6, borderStartCoords.second * 13 / 16, 25, RED);
+    }
+    void GameFinish_Draw() {
         const char* bigText;
         Color boxColor;
         if (m_gameFinishType) { // WON
@@ -355,12 +326,13 @@ private:
             boxColor = LIME;
         }
         else {
-            bigText = "YOU LOSE!";
+            bigText = "YOU LOST!";
             boxColor = RED;
         }
         DrawRectangle((borderStartCoords.first * 3 / 4), (borderStartCoords.second * 11 / 8), (cellSize * gridCols + borderStartCoords.first * 2 / 4), (cellSize * gridRows * 5 / 8), boxColor);
-        DrawText(bigText, borderStartCoords.first * 9 / 8, borderStartCoords.second * 7 / 4, 75, BLACK);
-        DrawText("Press 'R' to restart...", borderStartCoords.first * 13 / 8, borderStartCoords.second * 9 / 4, 25, BLACK);
+        DrawText(bigText, borderStartCoords.first * 8 / 8, borderStartCoords.second * 12 / 8, 75, BLACK);
+        DrawText(TextFormat("Time: %03.1f s", Timer.ReturnDuration()), borderStartCoords.first * 18 / 8, borderStartCoords.second * 8 / 4, 30, BLACK);
+        DrawText("Press 'R' to restart...", borderStartCoords.first * 13 / 8, borderStartCoords.second * 19 / 8, 25, BLACK);
     }
 
 public:
@@ -371,6 +343,8 @@ public:
 
     void Draw() {
         TitleDraw();
+        TimerDraw();
+        FlaggedCouterDraw();
         m_Board.draw();
         m_Grid.draw();
 
@@ -406,13 +380,20 @@ public:
         if (int act = MouseEventListener()) { //Action
             switch (act) {
             case OUT_MOUSE_BTN_R:
-                targetCell.Flag(); break;
+                numOfFlaggedCells += targetCell.Flag();
+                break;
 
             case OUT_MOUSE_BTN_L:
             {
                 int result = targetCell.Open(m_isFirstClick);
-                m_isFirstClick = false; 
 
+                if (result != -4) {
+                    if (m_isFirstClick) {
+                        Timer.Reset();
+                        Timer.TimeStop(false);
+                        m_isFirstClick = false;
+                    }
+                }
                 switch (result) {
                 case -4: //Flagged
                     break;
@@ -421,7 +402,7 @@ public:
                     if (m_Grid.OpenNeighbourCells(targetCell_r, targetCell_c, numOfOpenedCells)) //If opened a bomb
                         FinishGame(0);
                     else {
-                        std::cout << numOfOpenedCells << " - " << numOfCells << " - " << numOfBombs << "\n";
+                        DEBUG_LOG(numOfOpenedCells << " - " << numOfCells << " - " << numOfBombs);
                         if (numOfOpenedCells == numOfCells - numOfBombs)
                             FinishGame(1);
                     }
@@ -447,7 +428,7 @@ public:
                         m_Grid.OpenCellPlus(targetCell_r, targetCell_c, numOfOpenedCells);
 
                     numOfOpenedCells++; // Initial opening
-                    std::cout << numOfOpenedCells << " - " << numOfCells << " - " << numOfBombs << "\n";
+                    DEBUG_LOG(numOfOpenedCells << " - " << numOfCells << " - " << numOfBombs);
                     if (numOfOpenedCells == numOfCells - numOfBombs)
                         FinishGame(1);
                 }
@@ -459,7 +440,7 @@ public:
                     if (m_Grid.OpenNeighbourCells(targetCell_r, targetCell_c, numOfOpenedCells)) //If opened a bomb
                         FinishGame(0);
                     else {
-                        std::cout << numOfOpenedCells << " - " << numOfCells << " - " << numOfBombs << "\n";
+                        DEBUG_LOG(numOfOpenedCells << " - " << numOfCells << " - " << numOfBombs);
                         if (numOfOpenedCells == numOfCells - numOfBombs)
                             FinishGame(1);
                     }
@@ -475,10 +456,10 @@ public:
 
             if (m_Grid.getCellAt(result).MakeBomb()) { //If the cell is NOT a bomb
                 currentBombs ++;
-                std::cout << "Bomb placed on Cell " << result / gridCols << "_" << result % gridCols << "\n";
+                DEBUG_LOG("Bomb placed on Cell " << result / gridCols << "_" << result % gridCols);
             }
             else {
-                std::cout << "Bomb COULDN'T placed on Cell " << result / gridCols << "_" << result % gridCols << "\n";
+                DEBUG_LOG("Bomb COULDN'T placed on Cell " << result / gridCols << "_" << result % gridCols);
             }
         }
     }
@@ -492,7 +473,9 @@ public:
     }
 
     void StartGame() {
-        std::cout << "\n --------------------------------- \n\n";
+        DEBUG_LOG("\n-------------------------------------\n");
+        Timer.Reset();
+        Timer.TimeStop(true);
         GenerateBombs();
         m_Grid.SetCellValues();
     }
@@ -500,18 +483,13 @@ public:
     void FinishGame(bool type) {  // Type 0: Dead, 1: Won
         m_isGameFinish = 1;
         m_gameFinishType = type ? 1 : 0;
+        Timer.TimeStop(true);
     }
 
     void ResetGame() {
         m_Grid.ResetGrid();
         m_isGameFinish = 0; m_isFirstClick = 1;
-        currentBombs = 0; numOfOpenedCells = 0;
+        currentBombs = numOfOpenedCells = numOfFlaggedCells = 0;
         StartGame();
     }
 };
-
-/*
-TODOS:
-A timer, display the final time when game end.
-Remaining bomb counter.
-*/
