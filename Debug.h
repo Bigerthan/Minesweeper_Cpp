@@ -5,8 +5,10 @@ struct AllocationMetrics
     uint32_t TotalAllocated = 0;
     uint32_t TotalFreed = 0;
 
-    uint32_t CurrentMemoryUsage() { return TotalAllocated - TotalFreed; }
+    uint32_t CurrentMemoryUsage() const { return TotalAllocated - TotalFreed; }
 };
+
+static AllocationMetrics s_AllocationMetrics; //Allocaion info
 
 void* operator new(size_t size) {
     std::cout << "Allocated " << size << "bytes.\n";
