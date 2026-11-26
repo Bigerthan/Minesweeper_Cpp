@@ -109,8 +109,11 @@ public:
         isFlagged = true;
     }
 
-    int Open(bool FirstClick) { //Return= -3: Unopenable, -2: First click is Bomb, -1: Opened bomb, 0: Couldn't open, 0<x: Opened cell with value of x;
-        if (isOpened || isFlagged)
+    int Open(bool FirstClick) { //Return= -4: Flagged/Unopenable, -3: Opened, -2: First click is Bomb, -1: Opened bomb, 0: Zero, 0<x: Opened cell with value of x;
+        if (isFlagged)
+            return -4;
+
+        if (isOpened)
             return -3;
 
         if (isBomb) {
@@ -124,12 +127,6 @@ public:
         }
         isOpened = true;
         return m_value;
-    }
-
-    void OpenAll() {
-        if (isFlagged)
-            return;
-        std::cout << " OPEN ALL! \n";
     }
 
     bool MakeBomb() {
@@ -278,6 +275,33 @@ public:
             }
         });
     }
+
+    bool OpenNeighbourCells(int r, int c, int& totalOpenedCells) {
+        int FlaggedNeighbours = 0;
+        bool ReturnResult = false;
+
+        NeighbourFunc(r, c, [this, &FlaggedNeighbours](int n_r, int n_c) {
+            if (getCellAt(n_r, n_c).getData<bool>('F'))
+                FlaggedNeighbours++;
+        });
+
+        CELL& targetCell = getCellAt(r, c);
+        if (targetCell.getData<int>('V') == FlaggedNeighbours) {
+            NeighbourFunc(r, c, [this, &totalOpenedCells, &ReturnResult](int n_r, int n_c) {
+                CELL& NeighbourCell = getCellAt(n_r, n_c);
+
+                int result = NeighbourCell.getData<bool>('O') ? -5 : NeighbourCell.Open(false);
+                if (result >= -1) {
+                    if (result == -1) { ReturnResult = true; } // Opened a bomb
+                    else {
+                        if (result == 0) { OpenCellPlus(n_r, n_c, totalOpenedCells); }
+                        totalOpenedCells++;
+                    }
+                }
+            });
+        }
+        return ReturnResult;
+    }
 };
 
 class GAME {
@@ -390,10 +414,20 @@ public:
                 m_isFirstClick = false; 
 
                 switch (result) {
-                case -3:
+                case -4: //Flagged
                     break;
 
-                case -2:
+                case -3: //Opened
+                    if (m_Grid.OpenNeighbourCells(targetCell_r, targetCell_c, numOfOpenedCells)) //If opened a bomb
+                        FinishGame(0);
+                    else {
+                        std::cout << numOfOpenedCells << " - " << numOfCells << " - " << numOfBombs << "\n";
+                        if (numOfOpenedCells == numOfCells - numOfBombs)
+                            FinishGame(1);
+                    }
+                    break;
+
+                case -2: //FirstClick Bomb
                     ReplaceBomb(targetCell_r, targetCell_c);
                     if (targetCell.getData<int>('V') == 0) {
                         m_Grid.OpenCellPlus(targetCell_r, targetCell_c, numOfOpenedCells);
@@ -404,7 +438,7 @@ public:
                         FinishGame(1);
                     break;
 
-                case -1:
+                case -1: //Opened Bomb
                     FinishGame(0);
                     break;
 
@@ -421,7 +455,16 @@ public:
             }
 
             case OUT_MOUSE_BUT_M: case OUT_MOUSE_BTN_B:
-                targetCell.OpenAll(); break;
+                if (m_Grid.getCellAt(targetCell_r,targetCell_c).getData<bool>('O')) {
+                    if (m_Grid.OpenNeighbourCells(targetCell_r, targetCell_c, numOfOpenedCells)) //If opened a bomb
+                        FinishGame(0);
+                    else {
+                        std::cout << numOfOpenedCells << " - " << numOfCells << " - " << numOfBombs << "\n";
+                        if (numOfOpenedCells == numOfCells - numOfBombs)
+                            FinishGame(1);
+                    }
+                }
+                break;
             }
         }
     }
@@ -454,7 +497,7 @@ public:
         m_Grid.SetCellValues();
     }
 
-    void FinishGame(bool type) {  // type 0: Dead, 1: Won
+    void FinishGame(bool type) {  // Type 0: Dead, 1: Won
         m_isGameFinish = 1;
         m_gameFinishType = type ? 1 : 0;
     }
@@ -469,5 +512,6 @@ public:
 
 /*
 TODOS:
-IF ALL BOMBS = FLAG, USEABLE OPEN ALL -> make this
+A timer, display the final time when game end.
+Remaining bomb counter.
 */
